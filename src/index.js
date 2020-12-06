@@ -1,4 +1,5 @@
 import { GraphQLServer } from 'graphql-yoga'
+import { v4 as uuidv4, v4 } from 'uuid'
 
 // Demo data
 const users = [{
@@ -63,6 +64,7 @@ const comments = [{
 
 // Type Definitons (application Schemas)
 // ! after String (String!) means we don't want null as a return value
+// NB Query and Mutation are in-built types, they need to be spelled like they are
 const typeDefs = `
     type Query {
         me: User!
@@ -70,8 +72,14 @@ const typeDefs = `
         users(query: String): [User!]!
         posts(query: String): [Post!]!
         comments(query: String): [Comment!]!
-        
     }
+
+    type Mutation {
+        createUser(name: String!, email: String!, age: Int): User!
+        createPost(title: String!, body: String!, published: Boolean!, author: ID!): Post!
+        createComment(text: String!, author: ID!, post: ID!): Comment!
+    }
+
 
     type User {
         id: ID!
@@ -137,6 +145,54 @@ const resolvers = {
                 return comments
             return comments.filter(comment => comment.text.toLowerCase().includes(args.query.toLowerCase()))
         }
+    },
+    Mutation: {
+        createUser(parent, args, ctx, info) {
+            const emailTaken = users.some(user => user.email === args.email)
+
+            if (emailTaken) {
+                throw new Error ('Email already taken.')
+            }
+            const user = {
+                id: uuidv4(),
+                ...args
+            }
+
+            users.push(user)
+
+            return user
+        },
+        createPost(parent, args, ctx, info) {
+            const userExists = users.some(user => user.id === args.author)
+
+            if (!userExists) throw new Error ('User doesnt Exist.')
+
+            const post = {
+                id: uuidv4(),
+                ...args
+            }
+
+            posts.push(post)
+
+            return post
+        },
+        createComment(parent, args, ctx, info) {
+            const userExists = users.some(user => user.id === args.author)
+            if (!userExists) throw new Error ('Couldnt find author.')
+
+            const postExistsAndPublished = posts.some(post => post.id === args.post &&  post.published)
+            if (!postExistsAndPublished) throw new Error ('Couldnt find a published post.')
+
+            const comment = {
+                id: uuidv4(),
+                ...args
+            }
+
+            comments.push(comment)
+
+            return comment
+
+        },
     },
     Post: {
         author(parent, args, ctx, info) {
